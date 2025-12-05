@@ -67,20 +67,28 @@ class FeatureEngineer:
             Transformed features array
         """
         df_processed = df.copy()
-        
-        # Encode categorical variables
+
+        # Ensure derived features are present on new data (temporal and interactions)
+        # so single-row inputs (from the app) get the same columns as training.
+        if 'date' in df_processed.columns:
+            df_processed = self.add_temporal_features(df_processed)
+
+        df_processed = self.add_interaction_features(df_processed)
+
+        # Encode categorical variables using fitted encoders. Use a safe mapping
+        # that maps unseen categories to -1 instead of raising an error.
         for col in self.categorical_features:
             if col in df_processed.columns and col in self.label_encoders:
-                df_processed[col] = self.label_encoders[col].transform(
-                    df_processed[col]
-                )
-        
+                le = self.label_encoders[col]
+                mapping = {val: idx for idx, val in enumerate(le.classes_)}
+                df_processed[col] = df_processed[col].map(mapping).fillna(-1).astype(int)
+
         feature_cols = [col for col in self.feature_names 
                        if col in df_processed.columns]
-        
+
         X = df_processed[feature_cols].values
         X = self.scaler.transform(X)
-        
+
         return X
     
     def add_temporal_features(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -130,18 +138,21 @@ class FeatureEngineer:
                 lambda row: row['distance_km'] / transport_speed.get(row['transportation_mode'], 100),
                 axis=1
             )
-            self.numerical_features.append('estimated_transit_hours')
+            if 'estimated_transit_hours' not in self.numerical_features:
+                self.numerical_features.append('estimated_transit_hours')
         
         # Interaction: order value and quantity
         if 'order_value' in df.columns and 'order_quantity' in df.columns:
             df['value_per_unit'] = df['order_value'] / (df['order_quantity'] + 1)
-            self.numerical_features.append('value_per_unit')
+            if 'value_per_unit' not in self.numerical_features:
+                self.numerical_features.append('value_per_unit')
         
         # Interaction: supplier reliability and historical delay
         if 'supplier_reliability_score' in df.columns and 'historical_delay_rate' in df.columns:
             df['reliability_consistency'] = (df['supplier_reliability_score'] * 
                                             (1 - df['historical_delay_rate']))
-            self.numerical_features.append('reliability_consistency')
+            if 'reliability_consistency' not in self.numerical_features:
+                self.numerical_features.append('reliability_consistency')
         
         return df
     
