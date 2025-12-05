@@ -90,13 +90,14 @@ class DelayPredictionModel:
         """
         if X_val is not None and y_val is not None:
             eval_set = [(X_val, y_val)]
-            # For XGBoost, pass `verbose=False` through the `fit` kwargs only
-            # when supported; newer xgboost versions accept `verbose` in fit.
+            # Try passing `eval_set` to enable validation monitoring for
+            # models that support it (XGBoost, LightGBM). For estimators that
+            # don't accept `eval_set` (e.g., RandomForest, LinearRegression),
+            # fall back to a normal fit call.
             try:
-                self.model.fit(X_train, y_train, eval_set=eval_set, verbose=False)
-            except TypeError:
-                # Fall back if `verbose` is not accepted by this estimator's fit
                 self.model.fit(X_train, y_train, eval_set=eval_set)
+            except TypeError:
+                self.model.fit(X_train, y_train)
         else:
             self.model.fit(X_train, y_train)
         
