@@ -15,6 +15,8 @@ from .feature_engineering import FeatureEngineer
 from .models import DelayPredictionModel, EnsembleDelayPredictor
 from .evaluation import ModelEvaluator, DelayAnalyzer, PerformanceTracker
 from .visualization import PredictionVisualizer
+import logging
+import time
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -52,10 +54,13 @@ class SupplyChainPredictionPipeline:
         Returns:
             Loaded data
         """
-        print("Loading data...")
+        logger = logging.getLogger(__name__)
+        start = time.perf_counter()
+        logger.info("Loading data...")
         self.data = load_or_generate_data(filepath, n_samples)
-        print(f"Data loaded: {len(self.data)} records")
-        print(f"Columns: {list(self.data.columns)}")
+        elapsed = time.perf_counter() - start
+        logger.info(f"Data loaded: {len(self.data)} records (in {elapsed:.2f}s)")
+        logger.debug(f"Columns: {list(self.data.columns)}")
         
         return self.data
     
@@ -66,11 +71,13 @@ class SupplyChainPredictionPipeline:
         Returns:
             Tuple of (train_X, train_y, val_X, val_y, test_X, test_y)
         """
-        print("\nPreparing features...")
+        logger = logging.getLogger(__name__)
+        logger.info("Preparing features...")
+        start = time.perf_counter()
         
         # Split data temporally
         self.train_data, self.val_data, self.test_data = split_temporal_data(self.data)
-        print(f"Train: {len(self.train_data)}, Val: {len(self.val_data)}, Test: {len(self.test_data)}")
+        logger.info(f"Train: {len(self.train_data)}, Val: {len(self.val_data)}, Test: {len(self.test_data)}")
         
         # Feature engineering
         self.feature_engineer = FeatureEngineer()
@@ -94,7 +101,8 @@ class SupplyChainPredictionPipeline:
         val_y = self.val_data['delay_days'].values
         test_y = self.test_data['delay_days'].values
         
-        print(f"Features prepared: {len(feature_names)} features")
+        elapsed = time.perf_counter() - start
+        logger.info(f"Features prepared: {len(feature_names)} features (in {elapsed:.2f}s)")
         
         return train_X, train_y, val_X, val_y, test_X, test_y, feature_names
     
@@ -112,23 +120,24 @@ class SupplyChainPredictionPipeline:
         Returns:
             Dictionary of training metrics
         """
-        print("\nTraining model...")
+        logger = logging.getLogger(__name__)
+        logger.info("Training model...")
+        start = time.perf_counter()
         
         if self.model_type == 'ensemble':
             self.model = EnsembleDelayPredictor()
             metrics = self.model.train(train_X, train_y, val_X, val_y)
-            print(f"Ensemble trained with {len(self.model.models)} models")
+            logger.info(f"Ensemble trained with {len(self.model.models)} models")
             for model_name, model_metrics in metrics.items():
-                print(f"\n{model_name}:")
-                for key, value in model_metrics.items():
-                    print(f"  {key}: {value:.4f}")
+                logger.info(f"{model_name}: {model_metrics}")
         else:
             self.model = DelayPredictionModel(self.model_type)
             metrics = self.model.train(train_X, train_y, val_X, val_y)
-            print(f"Model trained: {self.model_type}")
-            for key, value in metrics.items():
-                print(f"  {key}: {value:.4f}")
+            logger.info(f"Model trained: {self.model_type}")
+            logger.info(metrics)
         
+        elapsed = time.perf_counter() - start
+        logger.info(f"Training completed in {elapsed:.2f}s")
         return metrics
     
     def evaluate(self, test_X: np.ndarray, test_y: np.ndarray,

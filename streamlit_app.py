@@ -19,6 +19,10 @@ except ImportError:
 import warnings
 warnings.filterwarnings('ignore')
 
+import logging
+import time
+logging.basicConfig(level=logging.INFO)
+
 # Page configuration
 st.set_page_config(
     page_title="Supply Chain Delay Predictor",
@@ -67,16 +71,31 @@ Accuracy: **89% R² Score** | Speed: **<1ms per prediction**
 
 # Initialize session state
 if 'pipeline' not in st.session_state:
-    with st.spinner("Loading machine learning models..."):
-        st.session_state.pipeline = SupplyChainPredictionPipeline('ensemble')
-        st.session_state.data = st.session_state.pipeline.load_data(n_samples=1000)
-        st.session_state.train_X, st.session_state.train_y, st.session_state.val_X, \
-        st.session_state.val_y, st.session_state.test_X, st.session_state.test_y, \
-        st.session_state.features = st.session_state.pipeline.prepare_features()
-        st.session_state.pipeline.train_model(
-            st.session_state.train_X, st.session_state.train_y,
-            st.session_state.val_X, st.session_state.val_y
-        )
+    # Lazy initialization: load pipeline and data, prepare features, but do NOT train.
+    # Training can be expensive and should be triggered on demand.
+    st.session_state.pipeline = SupplyChainPredictionPipeline('ensemble')
+    st.session_state.data = st.session_state.pipeline.load_data(n_samples=1000)
+    st.session_state.train_X, st.session_state.train_y, st.session_state.val_X, \
+    st.session_state.val_y, st.session_state.test_X, st.session_state.test_y, \
+    st.session_state.features = st.session_state.pipeline.prepare_features()
+    st.session_state.trained = False
+
+# Training controls
+with st.sidebar.expander('Model Controls'):
+    if not st.session_state.get('trained', False):
+        if st.button('Train Models (on-demand)'):
+            start = time.perf_counter()
+            with st.spinner('Training models — this may take a while...'):
+                metrics = st.session_state.pipeline.train_model(
+                    st.session_state.train_X, st.session_state.train_y,
+                    st.session_state.val_X, st.session_state.val_y
+                )
+            elapsed = time.perf_counter() - start
+            st.session_state.trained = True
+            st.success(f"Training completed in {elapsed:.1f}s")
+            st.write(metrics)
+    else:
+        st.info('Models are trained and ready to predict')
 
 pipeline = st.session_state.pipeline
 engineer = pipeline.feature_engineer
