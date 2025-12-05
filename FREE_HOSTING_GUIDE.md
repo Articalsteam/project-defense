@@ -170,80 +170,40 @@ zip -r lambda-deployment.zip supply_chain_prediction/
 
 ### Option 6: Streamlit Cloud (EASIEST UI)
 **Cost**: FREE  
-**Best For**: Beautiful web interface, no coding needed
+**Best For**: Beautiful web interface, interactive dashboards
 
-#### Step 1: Create Web App
-Create `app.py`:
-```python
-import streamlit as st
-from supply_chain_prediction import SupplyChainPredictionPipeline
-import pandas as pd
+#### Step 1: Use the Streamlit App
+The project includes a complete `streamlit_app.py` with:
+- ✅ Single shipment prediction form
+- ✅ Batch CSV analysis
+- ✅ Interactive visualizations
+- ✅ Risk classification
+- ✅ How it works explanations
+- ✅ Learning resources
 
-st.title("Supply Chain Delay Predictor")
+#### Step 2: Deploy to Streamlit Cloud
+1. **Push to GitHub**: Make sure `streamlit_app.py` is in your repository
+   ```bash
+   git add streamlit_app.py
+   git commit -m "Add Streamlit app"
+   git push origin main
+   ```
 
-# Input form
-with st.form("prediction_form"):
-    supplier_id = st.number_input("Supplier ID", 1, 20)
-    warehouse_id = st.number_input("Warehouse ID", 1, 10)
-    product_category = st.selectbox("Product Category", 
-        ["Electronics", "Textiles", "Chemicals", "Food", "Machinery"])
-    order_quantity = st.number_input("Order Quantity", 100, 10000)
-    distance_km = st.number_input("Distance (km)", 100, 5000)
-    transportation_mode = st.selectbox("Transportation", 
-        ["Air", "Road", "Rail", "Sea"])
-    
-    submitted = st.form_submit_button("Predict Delay")
+2. **Go to Streamlit Cloud**: https://share.streamlit.io
 
-if submitted:
-    # Make prediction
-    new_data = pd.DataFrame([{
-        'supplier_id': supplier_id,
-        'warehouse_id': warehouse_id,
-        'product_category': product_category,
-        'order_quantity': order_quantity,
-        'distance_km': distance_km,
-        'transportation_mode': transportation_mode,
-        'weather_condition': 'Clear',
-        'fuel_price_index': 1.1,
-        'port_congestion_score': 0.3,
-        'customs_clearance_hours': 8,
-        'scheduled_delivery_days': 7,
-        'historical_delay_rate': 0.1,
-        'supplier_inventory_level': 0.8,
-        'order_value': 50000,
-        'supplier_reliability_score': 0.9,
-        'date': pd.Timestamp.now()
-    }])
-    
-    # Load model and predict
-    engineer = joblib.load('feature_engineer.pkl')
-    model = joblib.load('ensemble_model.pkl')
-    X = engineer.transform(new_data)
-    prediction = model.predict(X)[0]
-    
-    # Display results
-    st.success(f"Predicted Delay: {prediction:.2f} days")
-    
-    if prediction > 5:
-        st.error("🚨 CRITICAL RISK - Immediate Action Required!")
-    elif prediction > 3:
-        st.warning("⚠️ HIGH RISK - Plan Preventive Measures")
-    elif prediction > 1:
-        st.info("📊 MEDIUM RISK - Monitor Closely")
-    else:
-        st.success("✅ LOW RISK - On-Time Delivery Expected")
+3. **Create new app** with these settings:
+   - **GitHub repository**: `https://github.com/Articalsteam/project-defense`
+   - **Branch**: `main`
+   - **File path**: `streamlit_app.py`
+   
+4. **Click "Deploy"** → Wait 2-3 minutes → Get public URL!
+
+**Example URL Format**:
+```
+https://github.com/Articalsteam/project-defense/blob/main/streamlit_app.py
 ```
 
-#### Step 2: Deploy
-```bash
-# Push to GitHub with app.py
-# Go to share.streamlit.io
-# Connect GitHub account
-# Select your repo
-# Deploy!
-```
-
-**Advantages**: Beautiful UI, free hosting, automatic updates from GitHub
+**Advantages**: Beautiful UI, free hosting, automatic updates from GitHub, no infrastructure needed
 
 ---
 
