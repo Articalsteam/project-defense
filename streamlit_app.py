@@ -3,12 +3,22 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import sys
-sys.path.insert(0, '/workspaces/project-defense')
+import os
 
-from supply_chain_prediction import (
-    SupplyChainPredictionPipeline,
-    DelayAnalyzer
-)
+# Add current directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+try:
+    from supply_chain_prediction import (
+        SupplyChainPredictionPipeline,
+        DelayAnalyzer
+    )
+except ImportError:
+    st.error("Error: Could not import supply_chain_prediction module. Make sure requirements.txt is installed.")
+    st.stop()
+
 import warnings
 warnings.filterwarnings('ignore')
 
