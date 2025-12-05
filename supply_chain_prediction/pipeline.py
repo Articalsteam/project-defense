@@ -187,12 +187,23 @@ class SupplyChainPredictionPipeline:
         Filenames include a hash of feature names so artifacts are invalidated
         automatically when features change.
         """
+        # Be defensive: cache_dir and feature_engineer may not exist on older
+        # pipeline instances (Streamlit hot-reload). Fall back gracefully.
+        cache_dir = getattr(self, 'cache_dir', os.path.join(os.getcwd(), 'models_cache'))
+        os.makedirs(cache_dir, exist_ok=True)
         feature_names = getattr(self.feature_engineer, 'feature_names', None)
         feature_hash = self._compute_feature_hash(feature_names)
-        model_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_model.joblib")
-        engineer_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
-        joblib.dump(self.model, model_path)
-        joblib.dump(self.feature_engineer, engineer_path)
+        model_path = os.path.join(cache_dir, f"{prefix}_{feature_hash}_model.joblib")
+        engineer_path = os.path.join(cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
+        try:
+            joblib.dump(self.model, model_path)
+            # feature_engineer might be None in some edge cases
+            if hasattr(self, 'feature_engineer') and self.feature_engineer is not None:
+                joblib.dump(self.feature_engineer, engineer_path)
+            else:
+                engineer_path = None
+        except Exception:
+            logger.exception('Failed to dump artifacts')
         # Update metadata
         meta = {
             'feature_hash': feature_hash,
@@ -201,8 +212,12 @@ class SupplyChainPredictionPipeline:
             'model_path': model_path,
             'engineer_path': engineer_path,
         }
-        with open(self._meta_filename, 'w') as f:
-            json.dump(meta, f)
+        try:
+            meta_file = getattr(self, '_meta_filename', os.path.join(cache_dir, 'pipeline_meta.json'))
+            with open(meta_file, 'w') as f:
+                json.dump(meta, f)
+        except Exception:
+            logger.exception('Failed to write meta file')
 
         logger.info(f"Artifacts saved: {model_path}, {engineer_path}")
 
@@ -210,20 +225,31 @@ class SupplyChainPredictionPipeline:
         """Attempt to load model and feature engineer from cache matching
         the current feature set. Returns True if loaded."""
         # If we don't yet have feature names, cannot match cache
+        # Be defensive: ensure cache_dir exists
+        cache_dir = getattr(self, 'cache_dir', os.path.join(os.getcwd(), 'models_cache'))
+        if not os.path.isdir(cache_dir):
+            logger.info('Cache directory missing; cannot load artifacts')
+            return False
+
         feature_names = getattr(self.feature_engineer, 'feature_names', None)
         if not feature_names:
             logger.info("No feature names available; cannot load artifacts")
             return False
 
         feature_hash = self._compute_feature_hash(feature_names)
-        model_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_model.joblib")
-        engineer_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
-        if os.path.exists(model_path) and os.path.exists(engineer_path):
+        model_path = os.path.join(cache_dir, f"{prefix}_{feature_hash}_model.joblib")
+        engineer_path = os.path.join(cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
+        if os.path.exists(model_path):
             try:
                 self.model = joblib.load(model_path)
-                self.feature_engineer = joblib.load(engineer_path)
+                # engineer_path might be absent (we may have saved only model)
+                if os.path.exists(engineer_path):
+                    try:
+                        self.feature_engineer = joblib.load(engineer_path)
+                    except Exception:
+                        logger.exception('Failed to load feature engineer; continuing with existing one')
                 self.is_trained = True
-                logger.info(f"Loaded artifacts from {self.cache_dir} for hash {feature_hash}")
+                logger.info(f"Loaded artifacts from {cache_dir} for hash {feature_hash}")
                 return True
             except Exception:
                 logger.exception("Failed to load cached artifacts")
@@ -322,10 +348,20 @@ class SupplyChainPredictionPipeline:
         Returns:
             Predictions, optionally with uncertainty
         """
-        if return_uncertainty and hasattr(self.model, 'predict_with_uncertainty'):
-            return self.model.predict_with_uncertainty(X)
+        # Return predictions, optionally with uncertainty estimates. If the
+        # underlying model does not support uncertainty, return zeros for
+        # uncertainty so callers can always expect a tuple when
+        # `return_uncertainty=True`.
+        preds = self.model.predict(X)
+        if return_uncertainty:
+            if hasattr(self.model, 'predict_with_uncertainty'):
+                return self.model.predict_with_uncertainty(X)
+            elif hasattr(self.model, 'predict_with_confidence'):
+                return self.model.predict_with_confidence(X)
+            else:
+                return preds, np.zeros_like(preds)
         else:
-            return self.model.predict(X)
+            return preds
     
     def identify_high_risk(self, test_X: np.ndarray, test_data: pd.DataFrame) -> pd.DataFrame:
         """
