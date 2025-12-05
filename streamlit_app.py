@@ -11,10 +11,7 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 try:
-    from supply_chain_prediction import (
-        SupplyChainPredictionPipeline,
-        DelayAnalyzer
-    )
+    from supply_chain_prediction import SupplyChainPredictionPipeline
 except ImportError:
     st.error("Error: Could not import supply_chain_prediction module. Make sure requirements.txt is installed.")
     st.stop()
