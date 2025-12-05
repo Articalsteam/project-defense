@@ -225,7 +225,8 @@ if page == "📊 Single Prediction":
         
         # Make prediction (defensive): ensure model is trained/loaded and handle
         # different return shapes (some models may not provide uncertainty).
-        if not getattr(pipeline, 'is_trained', False):
+        # Check training state either on the pipeline or session_state (set after training)
+        if not (st.session_state.get('trained', False) or getattr(pipeline, 'is_trained', False)):
             st.error('Model is not trained. Please train models first (sidebar) or load cached models.')
             st.stop()
 

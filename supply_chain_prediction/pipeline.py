@@ -164,6 +164,12 @@ class SupplyChainPredictionPipeline:
         elapsed = time.perf_counter() - start
         logger.info(f"Training completed in {elapsed:.2f}s")
 
+        # Mark pipeline as trained so callers (e.g., web UI) can check state.
+        try:
+            self.is_trained = True
+        except Exception:
+            logger.exception('Failed to set is_trained flag')
+
         # Save trained artifacts to cache for faster restarts
         try:
             self.save_artifacts()
