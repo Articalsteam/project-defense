@@ -22,6 +22,7 @@ warnings.filterwarnings('ignore')
 import logging
 import time
 logging.basicConfig(level=logging.INFO)
+import json
 
 # Page configuration
 st.set_page_config(
@@ -111,8 +112,8 @@ with st.sidebar.expander('Cache & Logs'):
         st.subheader('Model Cache')
         if st.session_state.pipeline:
             # Show metadata if available
-            meta_file = st.session_state.pipeline._meta_filename
-            if os.path.exists(meta_file):
+            meta_file = getattr(st.session_state.pipeline, '_meta_filename', None)
+            if meta_file and os.path.exists(meta_file):
                 try:
                     with open(meta_file, 'r') as mf:
                         meta = json.load(mf)
@@ -128,8 +129,11 @@ with st.sidebar.expander('Cache & Logs'):
                 st.write('No cached model found')
 
             if st.button('Clear Cache'):
-                st.session_state.pipeline.clear_cache()
-                st.success('Cache cleared')
+                if hasattr(st.session_state.pipeline, 'clear_cache'):
+                    st.session_state.pipeline.clear_cache()
+                    st.success('Cache cleared')
+                else:
+                    st.warning('Cache clear not supported for this pipeline instance')
 
     with col2:
         st.subheader('Logs')
