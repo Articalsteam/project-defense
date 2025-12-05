@@ -223,8 +223,26 @@ if page == "📊 Single Prediction":
         # Transform features
         X = engineer.transform(input_data)
         
-        # Make prediction
-        delay_pred, uncertainty = pipeline.predict(X, return_uncertainty=True)
+        # Make prediction (defensive): ensure model is trained/loaded and handle
+        # different return shapes (some models may not provide uncertainty).
+        if not getattr(pipeline, 'is_trained', False):
+            st.error('Model is not trained. Please train models first (sidebar) or load cached models.')
+            st.stop()
+
+        try:
+            res = pipeline.predict(X, return_uncertainty=True)
+        except Exception as e:
+            logging.exception('Prediction failed')
+            st.error('Prediction failed — check the pipeline logs for details. Try clearing cache or retraining.')
+            st.stop()
+
+        # Normalize result to (preds, uncertainty)
+        if isinstance(res, tuple) and len(res) == 2:
+            delay_pred, uncertainty = res
+        else:
+            delay_pred = np.asarray(res)
+            uncertainty = np.zeros_like(delay_pred)
+
         delay = delay_pred[0]
         unc = uncertainty[0]
         
