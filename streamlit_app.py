@@ -78,7 +78,14 @@ if 'pipeline' not in st.session_state:
     st.session_state.train_X, st.session_state.train_y, st.session_state.val_X, \
     st.session_state.val_y, st.session_state.test_X, st.session_state.test_y, \
     st.session_state.features = st.session_state.pipeline.prepare_features()
-    st.session_state.trained = False
+    # Try loading cached artifacts to avoid re-training on startup
+    try:
+        loaded = st.session_state.pipeline.load_artifacts()
+        st.session_state.trained = bool(loaded)
+        if loaded:
+            st.success('Loaded cached models — ready to predict')
+    except Exception:
+        st.session_state.trained = False
 
 # Training controls
 with st.sidebar.expander('Model Controls'):

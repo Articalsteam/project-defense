@@ -17,9 +17,25 @@ from .evaluation import ModelEvaluator, DelayAnalyzer, PerformanceTracker
 from .visualization import PredictionVisualizer
 import logging
 import time
+import os
+import joblib
 import warnings
 
 warnings.filterwarnings('ignore')
+
+# Module-level logger writes into `<project_root>/logs/pipeline.log` to help
+# diagnose slow deployments. We only add handlers if none exist to avoid
+# duplicating handlers when the module is reloaded.
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    log_dir = os.path.join(os.getcwd(), 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    fh = logging.FileHandler(os.path.join(log_dir, 'pipeline.log'))
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
 
 
 class SupplyChainPredictionPipeline:
@@ -42,6 +58,9 @@ class SupplyChainPredictionPipeline:
         self.train_data = None
         self.val_data = None
         self.test_data = None
+        # Cache directory for trained models and artifacts
+        self.cache_dir = os.path.join(os.getcwd(), 'models_cache')
+        os.makedirs(self.cache_dir, exist_ok=True)
     
     def load_data(self, filepath: str = None, n_samples: int = 1000) -> pd.DataFrame:
         """
@@ -138,7 +157,41 @@ class SupplyChainPredictionPipeline:
         
         elapsed = time.perf_counter() - start
         logger.info(f"Training completed in {elapsed:.2f}s")
+
+        # Save trained artifacts to cache for faster restarts
+        try:
+            self.save_artifacts()
+            logger.info(f"Saved artifacts to {self.cache_dir}")
+        except Exception:
+            logger.exception("Failed to save artifacts")
+
         return metrics
+
+    def save_artifacts(self, prefix: str = 'pipeline') -> None:
+        """Save model and feature engineer to the pipeline cache directory."""
+        model_path = os.path.join(self.cache_dir, f"{prefix}_model.joblib")
+        engineer_path = os.path.join(self.cache_dir, f"{prefix}_engineer.joblib")
+        joblib.dump(self.model, model_path)
+        joblib.dump(self.feature_engineer, engineer_path)
+        logger.info(f"Artifacts saved: {model_path}, {engineer_path}")
+
+    def load_artifacts(self, prefix: str = 'pipeline') -> bool:
+        """Attempt to load model and feature engineer from cache. Returns True if loaded."""
+        model_path = os.path.join(self.cache_dir, f"{prefix}_model.joblib")
+        engineer_path = os.path.join(self.cache_dir, f"{prefix}_engineer.joblib")
+        if os.path.exists(model_path) and os.path.exists(engineer_path):
+            try:
+                self.model = joblib.load(model_path)
+                self.feature_engineer = joblib.load(engineer_path)
+                self.is_trained = True
+                logger.info(f"Loaded artifacts from {self.cache_dir}")
+                return True
+            except Exception:
+                logger.exception("Failed to load cached artifacts")
+                return False
+        else:
+            logger.info("No cached artifacts found")
+            return False
     
     def evaluate(self, test_X: np.ndarray, test_y: np.ndarray,
                 test_data: pd.DataFrame = None) -> Dict:
