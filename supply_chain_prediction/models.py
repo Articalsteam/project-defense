@@ -33,6 +33,8 @@ class DelayPredictionModel:
     def _create_model(self):
         """Create the specified model."""
         if self.model_type == 'xgboost':
+            # Use `verbosity` for newer xgboost versions; `verbose` may be ignored
+            # and produce warnings like: Parameters: { "verbose" } are not used.
             return XGBRegressor(
                 n_estimators=200,
                 max_depth=6,
@@ -40,7 +42,8 @@ class DelayPredictionModel:
                 subsample=0.8,
                 colsample_bytree=0.8,
                 random_state=42,
-                verbose=0
+                verbosity=0,
+                eval_metric='rmse'
             )
         elif self.model_type == 'lightgbm':
             return LGBMRegressor(
@@ -87,7 +90,13 @@ class DelayPredictionModel:
         """
         if X_val is not None and y_val is not None:
             eval_set = [(X_val, y_val)]
-            self.model.fit(X_train, y_train, eval_set=eval_set, verbose=False)
+            # For XGBoost, pass `verbose=False` through the `fit` kwargs only
+            # when supported; newer xgboost versions accept `verbose` in fit.
+            try:
+                self.model.fit(X_train, y_train, eval_set=eval_set, verbose=False)
+            except TypeError:
+                # Fall back if `verbose` is not accepted by this estimator's fit
+                self.model.fit(X_train, y_train, eval_set=eval_set)
         else:
             self.model.fit(X_train, y_train)
         
