@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from pathlib import Path
 import sys
 import os
 
@@ -24,44 +25,72 @@ import time
 logging.basicConfig(level=logging.INFO)
 import json
 
-# Page configuration
+# Page configuration (use custom SVG icon)
+LOGO_PATH = os.path.join(current_dir, 'assets', 'logo.svg')
+page_icon = LOGO_PATH if Path(LOGO_PATH).exists() else "📦"
 st.set_page_config(
     page_title="Supply Chain Delay Predictor",
-    page_icon="📦",
+    page_icon=page_icon,
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
-st.markdown("""
+# Polished SaaS-style CSS (fonts, colors, cards, buttons)
+st.markdown(
+        f"""
 <style>
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 20px;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-    }
-    .success-box {
-        background-color: #d4edda;
-        border-left: 4px solid #28a745;
-        padding: 15px;
-        border-radius: 5px;
-    }
-    .warning-box {
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-        padding: 15px;
-        border-radius: 5px;
-    }
-    .danger-box {
-        background-color: #f8d7da;
-        border-left: 4px solid #dc3545;
-        padding: 15px;
-        border-radius: 5px;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    :root {{
+        --bg: #f7f9fc;
+        --muted: #6b7280;
+        --accent-from: #667eea;
+        --accent-to: #764ba2;
+        --card: #ffffff;
+        --glass: rgba(255,255,255,0.6);
+        --radius: 12px;
+    }}
+    html, body, .stApp {{
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+        background: var(--bg) !important;
+    }}
+    .css-1d391kg {{
+        /* avoid Streamlit style collisions - keep as fallback */
+    }}
+    /* Header */
+    .app-header {{
+        display:flex; align-items:center; gap:16px; padding:18px 18px; margin-bottom:12px;
+        background: linear-gradient(90deg, rgba(255,255,255,0.6), rgba(255,255,255,0.4));
+        border-radius: calc(var(--radius) + 4px);
+        box-shadow: 0 6px 18px rgba(20,40,80,0.06);
+    }}
+    .app-title {{ font-size:20px; font-weight:700; color:#0f172a; margin:0; }}
+    .app-subtitle {{ font-size:13px; color:var(--muted); margin:0; }}
+
+    /* Cards */
+    .metric-card {{
+        background: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+        color: white; padding:18px; border-radius:12px; box-shadow:0 8px 30px rgba(102,126,234,0.14);
+        transition: transform .18s ease, box-shadow .18s ease;
+    }}
+    .metric-card:hover {{ transform: translateY(-4px); box-shadow:0 12px 40px rgba(102,126,234,0.18); }}
+
+    /* Buttons */
+    .stButton>button {{ border-radius:10px; padding:10px 16px; font-weight:600; }}
+    .primary {{ background: linear-gradient(90deg, var(--accent-from), var(--accent-to)) !important; color:white !important; }}
+
+    /* Sidebar */
+    .stSidebar {{ background: linear-gradient(180deg, #ffffff, #fbfbfe); border-radius:12px; padding:12px; }}
+
+    /* Compact log viewer */
+    .logbox {{ font-family: monospace; font-size:12px; background: #0b1220; color: #e6eef8; padding:12px; border-radius:8px; max-height:280px; overflow:auto; }}
+
+    /* Minor tweaks */
+    .stProgress > div {{ border-radius:8px; }}
+    .stAlert {{ border-radius:10px; }}
 </style>
-""", unsafe_allow_html=True)
+""",
+        unsafe_allow_html=True,
+)
 
 # Title and intro
 st.title("🚀 Supply Chain Delay Prediction System")
