@@ -7,9 +7,9 @@ import sys
 import joblib
 import pandas as pd
 import numpy as np
-from pipeline import SupplyChainPredictionPipeline
-from data_loader import load_or_generate_data
-from feature_engineering import FeatureEngineer
+from .pipeline import SupplyChainPredictionPipeline
+from .data_loader import load_or_generate_data
+from .feature_engineering import FeatureEngineer
 import warnings
 
 warnings.filterwarnings('ignore')

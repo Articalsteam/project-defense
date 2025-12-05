@@ -3,11 +3,18 @@ Main training and prediction pipeline for supply chain delay prediction
 """
 import numpy as np
 import pandas as pd
-from data_loader import load_or_generate_data, split_temporal_data
-from feature_engineering import FeatureEngineer
-from models import DelayPredictionModel, EnsembleDelayPredictor
-from evaluation import ModelEvaluator, DelayAnalyzer, PerformanceTracker
-from visualization import PredictionVisualizer
+from typing import Dict, Tuple
+
+# Use package-relative imports so the module can be imported when the
+# package is installed or referenced as a package (e.g. via
+# `from supply_chain_prediction import ...`). Absolute imports like
+# `from data_loader import ...` fail when the package context isn't in
+# sys.path.
+from .data_loader import load_or_generate_data, split_temporal_data
+from .feature_engineering import FeatureEngineer
+from .models import DelayPredictionModel, EnsembleDelayPredictor
+from .evaluation import ModelEvaluator, DelayAnalyzer, PerformanceTracker
+from .visualization import PredictionVisualizer
 import warnings
 
 warnings.filterwarnings('ignore')
