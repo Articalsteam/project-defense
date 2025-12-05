@@ -104,6 +104,54 @@ with st.sidebar.expander('Model Controls'):
     else:
         st.info('Models are trained and ready to predict')
 
+# Cache and logs controls
+with st.sidebar.expander('Cache & Logs'):
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        st.subheader('Model Cache')
+        if st.session_state.pipeline:
+            # Show metadata if available
+            meta_file = st.session_state.pipeline._meta_filename
+            if os.path.exists(meta_file):
+                try:
+                    with open(meta_file, 'r') as mf:
+                        meta = json.load(mf)
+                    ts = meta.get('last_trained')
+                    if ts:
+                        dt = datetime.fromtimestamp(ts)
+                        st.write(f"Last trained: {dt.isoformat()}")
+                    st.write(f"Feature count: {meta.get('feature_count')}")
+                    st.write(f"Feature hash: {meta.get('feature_hash')}")
+                except Exception:
+                    st.write('No metadata available')
+            else:
+                st.write('No cached model found')
+
+            if st.button('Clear Cache'):
+                st.session_state.pipeline.clear_cache()
+                st.success('Cache cleared')
+
+    with col2:
+        st.subheader('Logs')
+        log_path = os.path.join(os.getcwd(), 'logs', 'pipeline.log')
+        if os.path.exists(log_path):
+            # Show last 200 lines
+            try:
+                with open(log_path, 'r') as lf:
+                    lines = lf.readlines()[-200:]
+                st.code(''.join(lines[-100:]))
+                if st.button('Download Logs'):
+                    with open(log_path, 'rb') as f:
+                        data = f.read()
+                    st.download_button('Download pipeline.log', data, file_name='pipeline.log')
+                if st.button('Clear Logs'):
+                    open(log_path, 'w').close()
+                    st.success('Logs cleared')
+            except Exception as e:
+                st.write('Unable to read logs')
+        else:
+            st.write('No log file available')
+
 pipeline = st.session_state.pipeline
 engineer = pipeline.feature_engineer
 

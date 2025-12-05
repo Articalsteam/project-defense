@@ -19,6 +19,9 @@ import logging
 import time
 import os
 import joblib
+import json
+import hashlib
+from logging.handlers import RotatingFileHandler
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -31,7 +34,8 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
     log_dir = os.path.join(os.getcwd(), 'logs')
     os.makedirs(log_dir, exist_ok=True)
-    fh = logging.FileHandler(os.path.join(log_dir, 'pipeline.log'))
+    # Rotate logs when they reach 1MB, keep 5 backups
+    fh = RotatingFileHandler(os.path.join(log_dir, 'pipeline.log'), maxBytes=1_000_000, backupCount=5)
     fh.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
@@ -61,6 +65,8 @@ class SupplyChainPredictionPipeline:
         # Cache directory for trained models and artifacts
         self.cache_dir = os.path.join(os.getcwd(), 'models_cache')
         os.makedirs(self.cache_dir, exist_ok=True)
+        # Metadata filename in cache (tracks last trained timestamp and feature hash)
+        self._meta_filename = os.path.join(self.cache_dir, 'pipeline_meta.json')
     
     def load_data(self, filepath: str = None, n_samples: int = 1000) -> pd.DataFrame:
         """
@@ -167,31 +173,80 @@ class SupplyChainPredictionPipeline:
 
         return metrics
 
+    def _compute_feature_hash(self, feature_names: list) -> str:
+        """Compute a short hash for the current feature set."""
+        if not feature_names:
+            return 'no-features'
+        joined = ','.join(feature_names)
+        h = hashlib.sha1(joined.encode('utf-8')).hexdigest()[:10]
+        return h
+
     def save_artifacts(self, prefix: str = 'pipeline') -> None:
-        """Save model and feature engineer to the pipeline cache directory."""
-        model_path = os.path.join(self.cache_dir, f"{prefix}_model.joblib")
-        engineer_path = os.path.join(self.cache_dir, f"{prefix}_engineer.joblib")
+        """Save model and feature engineer to the pipeline cache directory.
+
+        Filenames include a hash of feature names so artifacts are invalidated
+        automatically when features change.
+        """
+        feature_names = getattr(self.feature_engineer, 'feature_names', None)
+        feature_hash = self._compute_feature_hash(feature_names)
+        model_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_model.joblib")
+        engineer_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
         joblib.dump(self.model, model_path)
         joblib.dump(self.feature_engineer, engineer_path)
+        # Update metadata
+        meta = {
+            'feature_hash': feature_hash,
+            'feature_count': len(feature_names) if feature_names else 0,
+            'last_trained': time.time(),
+            'model_path': model_path,
+            'engineer_path': engineer_path,
+        }
+        with open(self._meta_filename, 'w') as f:
+            json.dump(meta, f)
+
         logger.info(f"Artifacts saved: {model_path}, {engineer_path}")
 
     def load_artifacts(self, prefix: str = 'pipeline') -> bool:
-        """Attempt to load model and feature engineer from cache. Returns True if loaded."""
-        model_path = os.path.join(self.cache_dir, f"{prefix}_model.joblib")
-        engineer_path = os.path.join(self.cache_dir, f"{prefix}_engineer.joblib")
+        """Attempt to load model and feature engineer from cache matching
+        the current feature set. Returns True if loaded."""
+        # If we don't yet have feature names, cannot match cache
+        feature_names = getattr(self.feature_engineer, 'feature_names', None)
+        if not feature_names:
+            logger.info("No feature names available; cannot load artifacts")
+            return False
+
+        feature_hash = self._compute_feature_hash(feature_names)
+        model_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_model.joblib")
+        engineer_path = os.path.join(self.cache_dir, f"{prefix}_{feature_hash}_engineer.joblib")
         if os.path.exists(model_path) and os.path.exists(engineer_path):
             try:
                 self.model = joblib.load(model_path)
                 self.feature_engineer = joblib.load(engineer_path)
                 self.is_trained = True
-                logger.info(f"Loaded artifacts from {self.cache_dir}")
+                logger.info(f"Loaded artifacts from {self.cache_dir} for hash {feature_hash}")
                 return True
             except Exception:
                 logger.exception("Failed to load cached artifacts")
                 return False
         else:
-            logger.info("No cached artifacts found")
+            logger.info(f"No cached artifacts matching feature hash {feature_hash}")
             return False
+
+    def clear_cache(self) -> None:
+        """Remove cached artifacts and metadata."""
+        for fn in os.listdir(self.cache_dir):
+            fp = os.path.join(self.cache_dir, fn)
+            try:
+                if os.path.isfile(fp):
+                    os.remove(fp)
+            except Exception:
+                logger.exception(f"Failed to remove cache file {fp}")
+        # Remove meta file if present
+        try:
+            if os.path.exists(self._meta_filename):
+                os.remove(self._meta_filename)
+        except Exception:
+            logger.exception("Failed to remove meta file")
     
     def evaluate(self, test_X: np.ndarray, test_y: np.ndarray,
                 test_data: pd.DataFrame = None) -> Dict:
